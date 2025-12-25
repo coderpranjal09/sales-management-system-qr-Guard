@@ -108,7 +108,7 @@ const Login = () => {
               </div>
               {role === 'admin' && (
                 <p className="mt-1 text-xs text-gray-500">
-                  Demo: admin@qrgtech.com / admin123
+                  
                 </p>
               )}
             </div>
