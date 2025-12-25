@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useAuth } from '../contexts/AuthContext'
 import React from "react";
-
+import { Link } from "react-router-dom";
 const Login = () => {
   const [role, setRole] = useState('admin')
   const [email, setEmail] = useState('')
@@ -135,12 +135,12 @@ const Login = () => {
             </div>
 
             <div className="mt-6">
-              <a
-                href="/qr-status"
+              <Link
+                to="/qr-status"
                 className="w-full flex justify-center py-2.5 px-4 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
               >
                 Check QR Status (Public)
-              </a>
+              </Link>
             </div>
           </div>
         </div>

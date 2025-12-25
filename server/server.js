@@ -21,11 +21,8 @@ connectDB();
    CORS Configuration
 =========================== */
 const allowedOrigins = [
-  'http://localhost:3000',
   'http://localhost:5173',
-  'https://qrguard.vercel.app',
-  'https://qrguard-frontend.vercel.app',
-  'https://qrguard-admin.vercel.app',
+  'https://qrguardsales.netlify.app/',
   process.env.FRONTEND_URL
 ].filter(Boolean);
 
