@@ -547,7 +547,7 @@ const Orders = () => {
                         <div>
                           <div>
                           <label className="text-sm font-medium text-gray-500">Mobile</label>
-                          <p className="text-gray-900">{selectedOrder.customer?.driverMobile || selectedOrder.customerId?.dirverMobile || 'N/A'}</p>
+                          <p className="text-gray-900">{selectedOrder.customer?.driverMobile || selectedOrder.customerId?.driverMobile || 'N/A'}</p>
                         </div>
                         <div></div>
                           <label className="text-sm font-medium text-gray-500">Email</label>
