@@ -23,6 +23,7 @@ connectDB();
 const allowedOrigins = [
   'http://localhost:5173',
   'https://qrguardsales.netlify.app/',
+  'https://qrguardsales.netlify.app/login',
   process.env.FRONTEND_URL
 ].filter(Boolean);
 
