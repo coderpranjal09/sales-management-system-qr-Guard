@@ -10,9 +10,376 @@ import {
   ArrowRightIcon,
   XIcon,
   CheckCircleIcon,
+  CreditCardIcon as PaymentIcon,
+  RefreshIcon,
+  ClipboardIcon,
+  CheckIcon,
+  ChevronDownIcon,
+  ChevronUpIcon,
 } from "@heroicons/react/outline";
 import api from "../../services/api";
 import toast from "react-hot-toast";
+
+// Simple QR Code Generator using Canvas
+const QRCodeGenerator = ({ value, size = 200 }) => {
+  const canvasRef = useRef(null);
+
+  useEffect(() => {
+    if (!value || !canvasRef.current) return;
+
+    const generateQRCode = async () => {
+      try {
+        const QRCode = await import('qrcode');
+        const canvas = canvasRef.current;
+        
+        QRCode.toCanvas(canvas, value, {
+          width: size,
+          margin: 2,
+          color: {
+            dark: '#000000',
+            light: '#ffffff'
+          }
+        }, (error) => {
+          if (error) {
+            console.error('QR Code generation error:', error);
+            const ctx = canvas.getContext('2d');
+            ctx.fillStyle = '#f3f4f6';
+            ctx.fillRect(0, 0, size, size);
+            ctx.fillStyle = '#6b7280';
+            ctx.font = '14px sans-serif';
+            ctx.textAlign = 'center';
+            ctx.fillText('QR Code', size/2, size/2);
+          }
+        });
+      } catch (error) {
+        console.error('Failed to load QR library:', error);
+        const canvas = canvasRef.current;
+        if (canvas) {
+          const ctx = canvas.getContext('2d');
+          ctx.fillStyle = '#f3f4f6';
+          ctx.fillRect(0, 0, size, size);
+          ctx.fillStyle = '#6b7280';
+          ctx.font = '14px sans-serif';
+          ctx.textAlign = 'center';
+          ctx.fillText('QR Code', size/2, size/2);
+        }
+      }
+    };
+
+    generateQRCode();
+  }, [value, size]);
+
+  return (
+    <canvas
+      ref={canvasRef}
+      width={size}
+      height={size}
+      className="w-full h-auto"
+    />
+  );
+};
+
+// Payment Section Component
+const PaymentSection = ({ 
+  paymentAmount, 
+  setPaymentAmount, 
+  paymentCaptured, 
+  setPaymentCaptured,
+  orderData,
+  setOrderData,
+  orderErrors,
+  onPaymentComplete
+}) => {
+  const [showQR, setShowQR] = useState(false);
+  const [qrValue, setQrValue] = useState("");
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [paymentStep, setPaymentStep] = useState('amount'); // 'amount' | 'qr' | 'transaction'
+  const [isExpanded, setIsExpanded] = useState(false);
+  const [manualTransactionId, setManualTransactionId] = useState("");
+  
+  // UPI Configuration
+  const UPI_ID = "8791273578m@pnb";
+  const UPI_NAME = "QRGuard Payments";
+
+  const handleGenerateQR = () => {
+    if (!paymentAmount || parseFloat(paymentAmount) <= 0) {
+      toast.error("Please enter a valid payment amount");
+      return;
+    }
+
+    setIsGenerating(true);
+    
+    // Simulate generation
+    setTimeout(() => {
+      const upiString = `upi://pay?pa=${UPI_ID}&pn=${encodeURIComponent(UPI_NAME)}&am=${paymentAmount}&cu=INR`;
+      setQrValue(upiString);
+      setShowQR(true);
+      setPaymentStep('qr');
+      setIsGenerating(false);
+      setIsExpanded(true);
+      toast.success("QR Code generated successfully!");
+    }, 800);
+  };
+
+  const handlePaymentDone = () => {
+    // Just mark payment as done, no auto-generation
+    setPaymentCaptured(true);
+    setPaymentStep('transaction');
+    toast.success("Payment confirmed! Please enter transaction ID.");
+  };
+
+  const handleTransactionSubmit = () => {
+    if (!manualTransactionId.trim()) {
+      toast.error("Please enter a transaction ID");
+      return;
+    }
+    
+    // Save the manual transaction ID
+    setOrderData(prev => ({ ...prev, transactionId: manualTransactionId.trim() }));
+    toast.success("Transaction ID saved!");
+    onPaymentComplete();
+  };
+
+  const handleReset = () => {
+    setShowQR(false);
+    setPaymentStep('amount');
+    setPaymentCaptured(false);
+    setPaymentAmount("");
+    setQrValue("");
+    setIsExpanded(false);
+    setManualTransactionId("");
+    setOrderData(prev => ({ ...prev, transactionId: "" }));
+  };
+
+  return (
+    <div className="bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden">
+      {/* Header */}
+      <div 
+        className="px-6 py-4 bg-gradient-to-r from-purple-50 to-indigo-50 border-b border-gray-200 flex items-center justify-between cursor-pointer"
+        onClick={() => setIsExpanded(!isExpanded)}
+      >
+        <div className="flex items-center space-x-3">
+          <div className="p-2 bg-purple-100 rounded-lg">
+            <PaymentIcon className="h-5 w-5 text-purple-600" />
+          </div>
+          <div>
+            <h4 className="font-semibold text-gray-900">UPI Payment</h4>
+            {paymentCaptured ? (
+              <p className="text-sm text-green-600 flex items-center">
+                <CheckCircleIcon className="h-4 w-4 mr-1" />
+                Payment Completed
+              </p>
+            ) : paymentStep === 'qr' ? (
+              <p className="text-sm text-purple-600">QR Code Generated</p>
+            ) : (
+              <p className="text-sm text-gray-500">Generate QR to pay via UPI</p>
+            )}
+          </div>
+        </div>
+        <div className="flex items-center space-x-3">
+          {paymentCaptured && (
+            <span className="px-2 py-1 bg-green-100 text-green-700 text-xs font-medium rounded-full">
+              Completed
+            </span>
+          )}
+          {isExpanded ? (
+            <ChevronUpIcon className="h-5 w-5 text-gray-400" />
+          ) : (
+            <ChevronDownIcon className="h-5 w-5 text-gray-400" />
+          )}
+        </div>
+      </div>
+
+      {/* Content */}
+      {isExpanded && (
+        <div className="p-6 space-y-6">
+          {/* Step 1: Amount Input */}
+          {paymentStep === 'amount' && (
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Enter Payment Amount
+                </label>
+                <div className="flex flex-col sm:flex-row gap-3">
+                  <div className="relative flex-1">
+                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 font-semibold">₹</span>
+                    <input
+                      type="number"
+                      value={paymentAmount}
+                      onChange={(e) => setPaymentAmount(e.target.value)}
+                      className="w-full pl-8 pr-4 py-3 border-2 border-gray-200 rounded-xl focus:border-purple-500 focus:ring-2 focus:ring-purple-200 outline-none transition-all duration-200"
+                      placeholder="0.00"
+                      min="1"
+                      step="1"
+                    />
+                  </div>
+                  <button
+                    onClick={handleGenerateQR}
+                    disabled={isGenerating || !paymentAmount || parseFloat(paymentAmount) <= 0}
+                    className="px-6 py-3 bg-gradient-to-r from-purple-600 to-indigo-600 text-white rounded-xl hover:from-purple-700 hover:to-indigo-700 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 transition-all duration-200 font-semibold flex items-center justify-center shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed min-w-[140px]"
+                  >
+                    {isGenerating ? (
+                      <>
+                        <RefreshIcon className="h-5 w-5 animate-spin mr-2" />
+                        Generating...
+                      </>
+                    ) : (
+                      <>
+                        <QrcodeIcon className="h-5 w-5 mr-2" />
+                        Generate QR
+                      </>
+                    )}
+                  </button>
+                </div>
+                <p className="text-xs text-gray-500 mt-2">
+                  💡 Enter amount and click generate to create UPI QR code
+                </p>
+              </div>
+            </div>
+          )}
+
+          {/* Step 2: QR Code Display */}
+          {paymentStep === 'qr' && showQR && (
+            <div className="space-y-6 animate-fadeIn">
+              <div className="bg-gradient-to-br from-purple-50 to-indigo-50 rounded-2xl p-6 border-2 border-purple-200">
+                <div className="grid md:grid-cols-2 gap-8 items-center">
+                  {/* QR Code */}
+                  <div className="flex flex-col items-center">
+                    <div className="bg-white p-4 rounded-2xl shadow-lg border-2 border-gray-200">
+                      <QRCodeGenerator value={qrValue} size={220} />
+                    </div>
+                    <p className="mt-3 text-sm text-gray-600 font-medium">
+                      Scan with any UPI App
+                    </p>
+                  </div>
+
+                  {/* Payment Details */}
+                  <div className="space-y-4">
+                    <div className="bg-white rounded-xl p-4 shadow-sm">
+                      <div className="flex justify-between items-center py-2 border-b border-gray-100">
+                        <span className="text-gray-600">Amount</span>
+                        <span className="text-2xl font-bold text-purple-600">₹{paymentAmount}</span>
+                      </div>
+                      <div className="flex justify-between items-center py-2 border-b border-gray-100">
+                        <span className="text-gray-600">Pay to</span>
+                        <span className="font-medium text-gray-800">{UPI_NAME}</span>
+                      </div>
+                      <div className="flex justify-between items-center py-2">
+                        <span className="text-gray-600">UPI ID</span>
+                        <span className="font-mono text-sm bg-gray-100 px-3 py-1 rounded-lg text-gray-700">
+                          {UPI_ID}
+                        </span>
+                      </div>
+                    </div>
+
+                    <button
+                      onClick={handlePaymentDone}
+                      className="w-full py-3 bg-gradient-to-r from-green-600 to-emerald-600 text-white rounded-xl hover:from-green-700 hover:to-emerald-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 transition-all duration-200 font-semibold flex items-center justify-center shadow-lg hover:shadow-xl"
+                    >
+                      <CheckCircleIcon className="h-5 w-5 mr-2" />
+                      I've Made the Payment
+                    </button>
+                    <p className="text-xs text-gray-500 text-center">
+                      Click after you've completed the payment via UPI app
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <button
+                onClick={handleReset}
+                className="text-sm text-gray-500 hover:text-gray-700 underline flex items-center"
+              >
+                <ArrowLeftIcon className="h-4 w-4 mr-1" />
+                Go back and change amount
+              </button>
+            </div>
+          )}
+
+          {/* Step 3: Transaction ID - Manual Entry */}
+          {paymentStep === 'transaction' && paymentCaptured && (
+            <div className="space-y-4 animate-fadeIn">
+              <div className="bg-gradient-to-br from-green-50 to-emerald-50 rounded-2xl p-6 border-2 border-green-200">
+                <div className="flex items-center mb-4">
+                  <div className="p-2 bg-green-100 rounded-full mr-3">
+                    <CheckCircleIcon className="h-6 w-6 text-green-600" />
+                  </div>
+                  <div>
+                    <h4 className="font-semibold text-green-800">Payment Confirmed!</h4>
+                    <p className="text-sm text-green-600">Please enter the transaction ID</p>
+                  </div>
+                </div>
+
+                <div className="space-y-3">
+                  <label className="block text-sm font-medium text-gray-700">
+                    Transaction ID <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={manualTransactionId}
+                    onChange={(e) => setManualTransactionId(e.target.value)}
+                    className={`w-full px-4 py-3 border-2 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all duration-200 ${
+                      orderErrors.transactionId ? 'border-red-500 bg-red-50' : 'border-gray-200 hover:border-blue-400'
+                    }`}
+                    placeholder="Enter transaction/UPI ID from your UPI app"
+                  />
+                  {orderErrors.transactionId && (
+                    <p className="text-sm text-red-600 flex items-center">
+                      <XIcon className="h-4 w-4 mr-1" />
+                      {orderErrors.transactionId}
+                    </p>
+                  )}
+                  <div className="flex items-start space-x-2 text-xs text-gray-500">
+                    <ClipboardIcon className="h-4 w-4 mt-0.5 flex-shrink-0" />
+                    <p>Enter the transaction ID from your UPI app (e.g., UPI Reference Number, Transaction ID)</p>
+                  </div>
+                </div>
+
+                <div className="flex flex-col sm:flex-row gap-3 mt-4">
+                  <button
+                    onClick={handleTransactionSubmit}
+                    disabled={!manualTransactionId.trim()}
+                    className="flex-1 py-3 bg-gradient-to-r from-purple-600 to-indigo-600 text-white rounded-xl hover:from-purple-700 hover:to-indigo-700 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 transition-all duration-200 font-semibold flex items-center justify-center shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    <CheckCircleIcon className="h-5 w-5 mr-2" />
+                    Save Transaction ID
+                  </button>
+                  <button
+                    onClick={handleReset}
+                    className="px-6 py-3 bg-gray-200 text-gray-700 rounded-xl hover:bg-gray-300 transition-all duration-200 font-medium"
+                  >
+                    Start Over
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Completion Status */}
+          {paymentCaptured && paymentStep === 'transaction' && orderData.transactionId && (
+            <div className="flex items-center justify-between pt-4 border-t border-gray-200">
+              <div className="flex items-center text-green-600">
+                <CheckCircleIcon className="h-5 w-5 mr-2" />
+                <div>
+                  <span className="font-medium">Transaction ID saved: </span>
+                  <span className="font-mono bg-gray-100 px-2 py-1 rounded text-sm">{orderData.transactionId}</span>
+                </div>
+              </div>
+              <button
+                onClick={() => {
+                  toast.success("Ready to submit order!");
+                }}
+                className="text-sm text-blue-600 hover:text-blue-700 font-medium"
+              >
+                ✓ Ready to submit →
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+};
 
 const CreateOrder = () => {
   const navigate = useNavigate();
@@ -25,6 +392,8 @@ const CreateOrder = () => {
   const [customerErrors, setCustomerErrors] = useState({});
   const [orderErrors, setOrderErrors] = useState({});
   const [isScanning, setIsScanning] = useState(false);
+  const [paymentAmount, setPaymentAmount] = useState("");
+  const [paymentCaptured, setPaymentCaptured] = useState(false);
 
   const [customerData, setCustomerData] = useState({
     name: "",
@@ -41,6 +410,39 @@ const CreateOrder = () => {
     transactionId: "",
   });
 
+  /* ---------------- HELPER: Extract Vehicle ID from URL ---------------- */
+  const extractVehicleIdFromUrl = (url) => {
+    try {
+      let vehicleId = null;
+      
+      if (url.startsWith('http://') || url.startsWith('https://')) {
+        const urlObj = new URL(url);
+        vehicleId = urlObj.searchParams.get('vehicle_id');
+      } 
+      else if (url.includes('vehicle_id=')) {
+        const params = new URLSearchParams(url.split('?')[1] || url);
+        vehicleId = params.get('vehicle_id');
+      }
+      
+      if (vehicleId && vehicleId.trim()) {
+        return vehicleId.trim();
+      }
+      
+      if (url && !url.includes('vehicle_id=') && !url.includes('http')) {
+        return url.trim();
+      }
+      
+      return null;
+    } catch (error) {
+      console.error("Error extracting vehicle ID:", error);
+      const match = url.match(/vehicle_id=([^&]+)/);
+      if (match && match[1]) {
+        return match[1];
+      }
+      return null;
+    }
+  };
+
   /* ---------------- LOAD QR SCANNER ---------------- */
   useEffect(() => {
     let mounted = true;
@@ -49,7 +451,6 @@ const CreateOrder = () => {
       if (typeof window === "undefined") return;
 
       try {
-        // Dynamically import the QR scanner
         const module = await import("html5-qrcode");
         if (mounted) {
           scannerRef.current = {
@@ -81,14 +482,20 @@ const CreateOrder = () => {
 
     const qrCodeSuccessCallback = (decodedText, decodedResult) => {
       if (decodedText && decodedText.trim()) {
-        setOrderData((prev) => ({ ...prev, qrId: decodedText.trim() }));
-        toast.success("QR Code scanned successfully!");
+        const vehicleId = extractVehicleIdFromUrl(decodedText.trim());
+        
+        if (vehicleId) {
+          setOrderData((prev) => ({ ...prev, qrId: vehicleId }));
+          toast.success(`Vehicle ID extracted: ${vehicleId}`);
+        } else {
+          toast.error("Invalid QR code: Vehicle ID not found");
+          console.warn("Scanned text:", decodedText);
+        }
         stopScanner();
       }
     };
 
     const qrCodeErrorCallback = (error) => {
-      // Don't show error if scanning was intentionally stopped
       if (error && !error.includes("NotFoundException")) {
         console.warn("QR scan error:", error);
       }
@@ -98,7 +505,6 @@ const CreateOrder = () => {
       setIsScanning(true);
       setShowScanner(true);
 
-      // Wait a bit for DOM to update
       await new Promise(resolve => setTimeout(resolve, 100));
 
       const qrCodeInstance = new scannerRef.current.Html5Qrcode(
@@ -119,7 +525,6 @@ const CreateOrder = () => {
         qrCodeErrorCallback
       );
 
-      // Store the instance for cleanup
       scannerRef.current.instance = qrCodeInstance;
     } catch (error) {
       console.error("Scanner start error:", error);
@@ -172,6 +577,11 @@ const CreateOrder = () => {
       paymentMode: mode,
       transactionId: mode === "cash" ? "" : prev.transactionId
     }));
+    // Reset payment states when switching modes
+    if (mode === "cash") {
+      setPaymentCaptured(false);
+      setPaymentAmount("");
+    }
   };
 
   /* ---------------- VALIDATION ---------------- */
@@ -229,8 +639,10 @@ const CreateOrder = () => {
       errors.qrId = "QR / VIN ID is required";
     }
 
-    if (orderData.paymentMode === "online" && !orderData.transactionId.trim()) {
-      errors.transactionId = "Transaction ID is required for online payment";
+    if (orderData.paymentMode === "online") {
+      if (!orderData.transactionId.trim()) {
+        errors.transactionId = "Transaction ID is required for online payment";
+      }
     }
 
     setOrderErrors(errors);
@@ -540,11 +952,13 @@ const CreateOrder = () => {
                     <p className="mt-6 text-lg text-gray-700">
                       {orderData.qrId ? (
                         <>
-                          <span className="font-semibold text-green-600">Scanned QR ID:</span>
-                          <span className="block mt-2 font-mono bg-green-50 p-3 rounded-lg">{orderData.qrId}</span>
+                          <span className="font-semibold text-green-600">Vehicle ID:</span>
+                          <span className="block mt-2 font-mono bg-green-50 p-3 rounded-lg text-lg font-bold">
+                            {orderData.qrId}
+                          </span>
                         </>
                       ) : (
-                        "Click 'Scan QR Code' to scan the product QR"
+                        "Click 'Scan QR Code' to scan the vehicle QR"
                       )}
                     </p>
                     {!scannerLoaded && (
@@ -558,7 +972,7 @@ const CreateOrder = () => {
                 {/* QR ID Input */}
                 <div>
                   <label className="block text-sm font-semibold text-gray-800 mb-2">
-                    QR / VIN ID *
+                    Vehicle ID *
                   </label>
                   <input
                     type="text"
@@ -568,7 +982,7 @@ const CreateOrder = () => {
                     className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all duration-200 ${
                       orderErrors.qrId ? 'border-red-500 bg-red-50' : 'border-gray-300 hover:border-blue-400'
                     }`}
-                    placeholder="Scan QR code or manually enter QR/VIN ID"
+                    placeholder="Scan QR code or manually enter Vehicle ID"
                     readOnly={isScanning}
                   />
                   {orderErrors.qrId && (
@@ -629,29 +1043,20 @@ const CreateOrder = () => {
                   </button>
                 </div>
 
-                {/* Transaction ID for Online Payment */}
+                {/* Online Payment - Inline Expandable Section */}
                 {orderData.paymentMode === "online" && (
-                  <div className="mt-6">
-                    <label className="block text-sm font-semibold text-gray-800 mb-2">
-                      Transaction ID *
-                    </label>
-                    <input
-                      type="text"
-                      name="transactionId"
-                      value={orderData.transactionId}
-                      onChange={handleOrderChange}
-                      className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all duration-200 ${
-                        orderErrors.transactionId ? 'border-red-500 bg-red-50' : 'border-gray-300 hover:border-blue-400'
-                      }`}
-                      placeholder="Enter transaction/UPI ID"
-                    />
-                    {orderErrors.transactionId && (
-                      <p className="mt-2 text-sm text-red-600 flex items-center">
-                        <span className="w-2 h-2 bg-red-500 rounded-full mr-2"></span>
-                        {orderErrors.transactionId}
-                      </p>
-                    )}
-                  </div>
+                  <PaymentSection
+                    paymentAmount={paymentAmount}
+                    setPaymentAmount={setPaymentAmount}
+                    paymentCaptured={paymentCaptured}
+                    setPaymentCaptured={setPaymentCaptured}
+                    orderData={orderData}
+                    setOrderData={setOrderData}
+                    orderErrors={orderErrors}
+                    onPaymentComplete={() => {
+                      toast.success("Payment section completed!");
+                    }}
+                  />
                 )}
               </div>
 
@@ -670,7 +1075,7 @@ const CreateOrder = () => {
                 
                 <button
                   onClick={handleSubmit}
-                  disabled={loading || !scannerLoaded}
+                  disabled={loading || !scannerLoaded || (orderData.paymentMode === "online" && !paymentCaptured)}
                   className="px-8 py-3 bg-gradient-to-r from-green-600 to-emerald-600 text-white rounded-xl hover:from-green-700 hover:to-emerald-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 font-semibold flex items-center justify-center shadow-lg hover:shadow-xl"
                 >
                   {loading ? (
